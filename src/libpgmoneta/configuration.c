@@ -28,12 +28,13 @@
 
 /* pgmoneta */
 #include <pgmoneta.h>
+#include <aes.h>
+#include <clustering.h>
 #include <configuration.h>
 #include <logging.h>
 #include <security.h>
 #include <shmem.h>
 #include <utils.h>
-#include <aes.h>
 
 /* system */
 #include <ctype.h>
@@ -72,6 +73,7 @@ static int as_seconds(char* str, int* age, int default_age);
 static int as_bytes(char* str, int* bytes, int default_bytes);
 static int as_retention(char* str, int* days, int* weeks, int* months, int* years);
 static int as_create_slot(char* str, int* create_slot);
+static int as_clustering(char* str, int* c);
 
 static bool transfer_configuration(struct configuration* config, struct configuration* reload);
 static int copy_server(struct server* dst, struct server* src);
@@ -115,6 +117,8 @@ pgmoneta_init_configuration(void* shm)
 
    config->blocking_timeout = 30;
    config->authentication_timeout = 5;
+
+   config->clustering = 0;
 
    config->keep_alive = true;
    config->nodelay = true;
@@ -225,6 +229,7 @@ pgmoneta_read_configuration(void* shm, char* filename)
                   atomic_init(&srv.last_operation_time, 0);
                   atomic_init(&srv.last_failed_operation_time, 0);
                   memset(srv.wal_shipping, 0, MAX_PATH);
+                  srv.clustering = CLUSTERING_UNKNOWN;
                   srv.workers = -1;
                   srv.backup_max_rate = -1;
                   srv.network_max_rate = -1;
@@ -1280,6 +1285,75 @@ pgmoneta_read_configuration(void* shm, char* filename)
                      unknown = true;
                   }
                }
+               else if (!strcmp(key, "clustering"))
+               {
+                  if (!strcmp(section, "pgmoneta"))
+                  {
+                     if (as_int(value, &config->clustering))
+                     {
+                        unknown = true;
+                     }
+                  }
+                  else if (strlen(section) > 0)
+                  {
+                     if (as_clustering(value, &srv.clustering))
+                     {
+                        unknown = true;
+                     }
+                  }
+                  else
+                  {
+                     unknown = true;
+                  }
+               }
+               else if (!strcmp(key, "clustering_id"))
+               {
+                  if (!strcmp(section, "pgmoneta"))
+                  {
+                     max = strlen(value);
+                     if (max > MISC_LENGTH - 1)
+                     {
+                        max = MISC_LENGTH - 1;
+                     }
+                     memcpy(config->clustering_id, value, max);
+                  }
+                  else
+                  {
+                     unknown = true;
+                  }
+               }
+               else if (!strcmp(key, "clustering_nodes"))
+               {
+                  if (!strcmp(section, "pgmoneta"))
+                  {
+                     max = strlen(value);
+                     if (max > MAX_VALUE - 1)
+                     {
+                        max = MAX_VALUE - 1;
+                     }
+                     memcpy(config->clustering_nodes, value, max);
+                  }
+                  else
+                  {
+                     unknown = true;
+                  }
+               }
+               else if (!strcmp(key, "clustering_base_dir"))
+               {
+                  if (!strcmp(section, "pgmoneta"))
+                  {
+                     max = strlen(value);
+                     if (max > MAX_PATH - 1)
+                     {
+                        max = MAX_PATH - 1;
+                     }
+                     memcpy(&config->clustering_base_dir[0], value, max);
+                  }
+                  else
+                  {
+                     unknown = true;
+                  }
+               }
                else
                {
                   unknown = true;
@@ -1344,6 +1418,11 @@ pgmoneta_validate_configuration(void* shm)
    {
       pgmoneta_log_fatal("No host defined");
       return 1;
+   }
+
+   if (!strcmp("*", config->host) && config->clustering > 0)
+   {
+      pgmoneta_log_warn("Host must bound to a specific interface when clustering is enabled");
    }
 
    if (strlen(config->unix_socket_dir) == 0)
@@ -1489,6 +1568,12 @@ pgmoneta_validate_configuration(void* shm)
       }
    }
 
+   if (config->clustering > 0 && strlen(config->clustering_id) == 0)
+   {
+      pgmoneta_log_fatal("clustering_id need to be defined");
+      return 1;
+   }
+
    if (config->workers < 0)
    {
       config->workers = 0;
@@ -1502,9 +1587,11 @@ pgmoneta_validate_configuration(void* shm)
          return 1;
       }
 
-      if (!strcmp(config->servers[i].name, "all"))
+      if (config->clustering > 0 &&
+          strlen(config->clustering_base_dir) == 0 &&
+          !strcmp(config->servers[i].name, "clustering"))
       {
-         pgmoneta_log_fatal("all is a reserved word for a host");
+         pgmoneta_log_fatal("clustering is a reserved word for a host");
          return 1;
       }
 
@@ -3033,6 +3120,24 @@ as_create_slot(char* str, int* create_slot)
    return 1;
 }
 
+static int
+as_clustering(char* str, int* c)
+{
+   if (!strcasecmp(str, "true") || !strcasecmp(str, "on") || !strcasecmp(str, "yes") || !strcasecmp(str, "1"))
+   {
+      *c = CLUSTERING_YES;
+      return 0;
+   }
+
+   if (!strcasecmp(str, "false") || !strcasecmp(str, "off") || !strcasecmp(str, "no") || !strcasecmp(str, "0"))
+   {
+      *c = CLUSTERING_NO;
+      return 0;
+   }
+
+   return CLUSTERING_UNKNOWN;
+}
+
 static bool
 transfer_configuration(struct configuration* config, struct configuration* reload)
 {
@@ -3057,6 +3162,7 @@ transfer_configuration(struct configuration* config, struct configuration* reloa
    {
       changed = true;
    }
+
    config->create_slot = reload->create_slot;
    config->compression_type = reload->compression_type;
    config->compression_level = reload->compression_level;
@@ -3098,6 +3204,23 @@ transfer_configuration(struct configuration* config, struct configuration* reloa
       changed = true;
    }
    if (restart_string("tls_ca_file", config->tls_ca_file, reload->tls_ca_file))
+   {
+      changed = true;
+   }
+
+   if (restart_int("clustering", config->clustering, reload->clustering))
+   {
+      changed = true;
+   }
+   if (restart_string("clustering_id", config->clustering_id, reload->clustering_id))
+   {
+      changed = true;
+   }
+   if (restart_string("clustering_nodes", config->clustering_nodes, reload->clustering_nodes))
+   {
+      changed = true;
+   }
+   if (restart_string("clustering_base_dir", config->clustering_base_dir, reload->clustering_base_dir))
    {
       changed = true;
    }
@@ -3194,6 +3317,7 @@ copy_server(struct server* dst, struct server* src)
    {
       changed = true;
    }
+
    dst->create_slot = src->create_slot;
    if (restart_string("wal_slot", &dst->wal_slot[0], &src->wal_slot[0]))
    {
@@ -3239,6 +3363,11 @@ copy_server(struct server* dst, struct server* src)
       changed = true;
    }
 
+   if (restart_int("clustering", dst->clustering, src->clustering))
+   {
+      changed = true;
+   }
+   
    dst->number_of_extra = src->number_of_extra;
    for (int i = 0; i < MAX_EXTRA; i++)
    {

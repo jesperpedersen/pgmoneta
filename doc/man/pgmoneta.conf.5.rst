@@ -55,6 +55,18 @@ metrics_cache_max_size
 management
   The remote management port. Default is 0 (disabled)
 
+clustering
+  The clustering port (disable = 0) |
+
+clustering_id
+  The clustering unique identifier
+  
+clustering_nodes
+  The clustering nodes - a comma-separated list of server:port
+
+clustering_base_dir
+  The base directory for clustering backups
+
 compression
   The compression type (none, gzip, client-gzip, server-gzip, zstd, client-zstd, server-zstd, lz4, client-lz4, server-lz4, bzip2, client-bzip2). Default is zstd
 
@@ -237,9 +249,6 @@ port
 user
   The user name for the replication role. Mandatory
 
-extra 
-  The source directory for retrieval on the server side
-
 wal_slot
   The WAL slot. Mandatory
 
@@ -264,6 +273,9 @@ hot_standby_overrides
 hot_standby_tablespaces
   Tablespace mappings for the hot standby. Syntax is [from -> to,?]+
 
+clustering
+  Is clustering enabled ?
+
 workers
   The number of workers that each process can use for its work. Use 0 to disable, -1 means use the global settting. Default is -1
 
@@ -284,6 +296,9 @@ tls_key_file
 
 tls_ca_file
   Certificate Authority (CA) file for TLS. This file must be owned by either the user running pgmoneta or root.
+
+extra 
+  The source directory for retrieval on the server side
 
 REPORTING BUGS
 ==============

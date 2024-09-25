@@ -55,6 +55,7 @@ extern "C" {
 #define INFO_LABEL            "LABEL"
 #define INFO_MAJOR_VERSION    "MAJOR_VERSION"
 #define INFO_MINOR_VERSION    "MINOR_VERSION"
+#define INFO_OWNER            "OWNER"
 #define INFO_RESTORE          "RESTORE"
 #define INFO_START_TIMELINE   "START_TIMELINE"
 #define INFO_START_WALPOS     "START_WALPOS"
@@ -95,6 +96,7 @@ struct backup
    int hash_algoritm;                                             /**< The hash algoritm for the manifest */
    int compression;                                               /**< The compression type */
    int encryption;                                                /**< The encryption type */
+   char owner[MISC_LENGTH];                                       /**< The owner of the backup */
    char comments[MAX_COMMENT];                                    /**< The comments */
    char extra[MAX_EXTRA_PATH];                                    /**< The extra directory */
 } __attribute__ ((aligned (64)));

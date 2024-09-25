@@ -847,9 +847,13 @@ pgmoneta_management_response_error(SSL* ssl, int socket, char* server, int32_t e
       goto error;
    }
 
+   pgmoneta_json_destroy(payload);
+
    return 0;
 
 error:
+
+   pgmoneta_json_destroy(outcome);
 
    return 1;
 }

@@ -346,7 +346,7 @@ pgmoneta_connect(const char* hostname, int port, int* fd)
 
 error:
 
-   pgmoneta_log_debug("pgmoneta_connect: %s", strerror(error));
+   pgmoneta_log_debug("pgmoneta_connect: %s:%d (%s)", hostname, port, strerror(error));
 
    if (servinfo != NULL)
    {

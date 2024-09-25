@@ -129,6 +129,7 @@ extern "C" {
 #define MANAGEMENT_ARGUMENT_OFFLINE               "Offline"
 #define MANAGEMENT_ARGUMENT_ORIGINAL              "Original"
 #define MANAGEMENT_ARGUMENT_OUTPUT                "Output"
+#define MANAGEMENT_ARGUMENT_OWNER                 "Owner"
 #define MANAGEMENT_ARGUMENT_POSITION              "Position"
 #define MANAGEMENT_ARGUMENT_RESTART               "Restart"
 #define MANAGEMENT_ARGUMENT_RESTORE_SIZE          "RestoreSize"

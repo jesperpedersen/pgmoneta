@@ -109,6 +109,53 @@ AuthenticationSASLFinal and AuthenticationOk. The SSLRequest message is supporte
 
 The remote management interface is defined in [remote.h][remote_h] ([remote.c][remote_c]).
 
+## Clustering
+
+[**pgmoneta**][pgmoneta] has a clustering interface which allows multiple [**pgmoneta**][pgmoneta] instances to work together.
+
+The clustering interface is defined in [clustering.h][clustering.h] ([clustering.c][clustering.c]). The clustering interface
+uses its own protocol which uses JSON as its foundation.
+
+### Write
+
+The client sends a single JSON string to the server,
+
+| Field         | Type   | Description                     |
+|---------------|--------|---------------------------------|
+| `compression` | uint8  | The compression type            |
+| `encryption`  | uint8  | The encryption type             |
+| `length`      | uint32 | The length of the JSON document |
+| `json`        | String | The JSON document               |
+
+The server sends a single JSON string to the client,
+
+| Field         | Type   | Description                     |
+|---------------|--------|---------------------------------|
+| `compression` | uint8  | The compression type            |
+| `encryption`  | uint8  | The encryption type             |
+| `length`      | uint32 | The length of the JSON document |
+| `json`        | String | The JSON document               |
+
+### Read
+
+The server sends a single JSON string to the client,
+
+| Field         | Type   | Description                     |
+|---------------|--------|---------------------------------|
+| `compression` | uint8  | The compression type            |
+| `encryption`  | uint8  | The encryption type             |
+| `length`      | uint32 | The length of the JSON document |
+| `json`        | String | The JSON document               |
+
+The client sends to the server a single JSON documents,
+
+| Field         | Type   | Description                     |
+|---------------|--------|---------------------------------|
+| `compression` | uint8  | The compression type            |
+| `encryption`  | uint8  | The encryption type             |
+| `length`      | uint32 | The length of the JSON document |
+| `json`        | String | The JSON document               |
+
 ## libev usage
 
 [libev][libev] is used to handle network interactions, which is "activated" upon an `EV_READ` event.

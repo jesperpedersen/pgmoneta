@@ -29,6 +29,10 @@ See a [sample](./etc/pgmoneta.conf) configuration for running `pgmoneta` on `loc
 | metrics_cache_max_age | 0 | String | No | The number of seconds to keep in cache a Prometheus (metrics) response. If set to zero, the caching will be disabled. Can be a string with a suffix, like `2m` to indicate 2 minutes |
 | metrics_cache_max_size | 256k | String | No | The maximum amount of data to keep in cache when serving Prometheus responses. Changes require restart. This parameter determines the size of memory allocated for the cache even if `metrics_cache_max_age` or `metrics` are disabled. Its value, however, is taken into account only if `metrics_cache_max_age` is set to a non-zero value. Supports suffixes: 'B' (bytes), the default if omitted, 'K' or 'KB' (kilobytes), 'M' or 'MB' (megabytes), 'G' or 'GB' (gigabytes).|
 | management | 0 | Int | No | The remote management port (disable = 0) |
+| clustering | 0 | Int | No | The clustering port (disable = 0) |
+| clustering_id | | String | Yes | The clustering unique identifier |
+| clustering_nodes | | String | No | The clustering nodes - a comma-separated list of server:port |
+| clustering_base_dir | | String | No | The base directory for clustering backups |
 | compression | zstd | String | No | The compression type (none, gzip, client-gzip, server-gzip, zstd, client-zstd, server-zstd, lz4, client-lz4, server-lz4, bzip2, client-bzip2) |
 | compression_level | 3 | Int | No | The compression level |
 | workers | 0 | Int | No | The number of workers that each process can use for its work. Use 0 to disable |
@@ -80,7 +84,8 @@ See a [sample](./etc/pgmoneta.conf) configuration for running `pgmoneta` on `loc
 | host | | String | Yes | The address of the PostgreSQL instance |
 | port | | Int | Yes | The port of the PostgreSQL instance |
 | user | | String | Yes | The replication user name |
-| wal_slot | | String | Yes | The replication slot for WAL |
+| remote | no | Bool | No | Is the server a remote pgmoneta instance |
+| wal_slot | | String | Yes / No | The replication slot for WAL |
 | create_slot | no | Bool | No | Create a replication slot for this server. Valid values are: yes, no |
 | follow | | String | No | Failover to this server if follow server fails |
 | retention | | Array | No | The retention for the server in days, weeks, months, years |
@@ -88,6 +93,7 @@ See a [sample](./etc/pgmoneta.conf) configuration for running `pgmoneta` on `loc
 | hot_standby | | String | No | Hot standby directory |
 | hot_standby_overrides | | String | No | Files to override in the hot standby directory |
 | hot_standby_tablespaces | | String | No | Tablespace mappings for the hot standby. Syntax is [from -> to,?]+ |
+| clustering | | Bool | No | Is clustering enabled ? |
 | workers | -1 | Int | No | The number of workers that each process can use for its work. Use 0 to disable, -1 means use the global settting |
 | backup_max_rate | -1 | Int | No | The number of bytes of tokens added every one second to limit the backup rate. Use 0 to disable, -1 means use the global settting|
 | network_max_rate | -1 | Int | No | The number of bytes of tokens added every one second to limit the netowrk backup rate. Use 0 to disable, -1 means use the global settting|
