@@ -32,6 +32,7 @@
 #include <aes.h>
 #include <backup.h>
 #include <bzip2_compression.h>
+#include <clustering.h>
 #include <configuration.h>
 #include <delete.h>
 #include <gzip_compression.h>
@@ -86,6 +87,7 @@
 static void accept_mgt_cb(struct ev_loop* loop, struct ev_io* watcher, int revents);
 static void accept_metrics_cb(struct ev_loop* loop, struct ev_io* watcher, int revents);
 static void accept_management_cb(struct ev_loop* loop, struct ev_io* watcher, int revents);
+static void accept_clustering_cb(struct ev_loop* loop, struct ev_io* watcher, int revents);
 static void shutdown_cb(struct ev_loop* loop, ev_signal* w, int revents);
 static void reload_cb(struct ev_loop* loop, ev_signal* w, int revents);
 static void coredump_cb(struct ev_loop* loop, ev_signal* w, int revents);
@@ -93,6 +95,7 @@ static void wal_cb(struct ev_loop* loop, ev_periodic* w, int revents);
 static void retention_cb(struct ev_loop* loop, ev_periodic* w, int revents);
 static void valid_cb(struct ev_loop* loop, ev_periodic* w, int revents);
 static void wal_streaming_cb(struct ev_loop* loop, ev_periodic* w, int revents);
+static void clustering_cb(struct ev_loop* loop, ev_periodic* w, int revents);
 static bool accept_fatal(int error);
 static bool reload_configuration(void);
 static void init_receivewals(void);
@@ -121,6 +124,9 @@ static int metrics_fds_length = -1;
 static struct accept_io io_management[MAX_FDS];
 static int* management_fds = NULL;
 static int management_fds_length = -1;
+static struct accept_io io_clustering[MAX_FDS];
+static int* clustering_fds = NULL;
+static int clustering_fds_length = -1;
 static bool offline = false;
 
 static void
@@ -200,6 +206,32 @@ shutdown_management(void)
 }
 
 static void
+start_clustering(void)
+{
+   for (int i = 0; i < clustering_fds_length; i++)
+   {
+      int sockfd = *(clustering_fds + i);
+
+      memset(&io_clustering[i], 0, sizeof(struct accept_io));
+      ev_io_init((struct ev_io*)&io_clustering[i], accept_clustering_cb, sockfd, EV_READ);
+      io_clustering[i].socket = sockfd;
+      io_clustering[i].argv = argv_ptr;
+      ev_io_start(main_loop, (struct ev_io*)&io_clustering[i]);
+   }
+}
+
+static void
+shutdown_clustering(void)
+{
+   for (int i = 0; i < clustering_fds_length; i++)
+   {
+      ev_io_stop(main_loop, (struct ev_io*)&io_clustering[i]);
+      pgmoneta_disconnect(io_clustering[i].socket);
+      errno = 0;
+   }
+}
+
+static void
 version(void)
 {
    printf("pgmoneta %s\n", VERSION);
@@ -238,6 +270,7 @@ main(int argc, char** argv)
    bool daemon = false;
    bool pid_file_created = false;
    bool management_started = false;
+   bool clustering_started = false;
    bool mgt_started = false;
    bool metrics_started = false;
    pid_t pid, sid;
@@ -246,6 +279,7 @@ main(int argc, char** argv)
    struct ev_periodic retention;
    struct ev_periodic valid;
    struct ev_periodic wal_streaming;
+   struct ev_periodic clustering;
    size_t shmem_size;
    size_t prometheus_cache_shmem_size = 0;
    struct configuration* config = NULL;
@@ -624,6 +658,33 @@ main(int argc, char** argv)
       management_started = true;
    }
 
+   if (config->clustering > 0)
+   {
+      pgmoneta_clustering_init();
+
+      /* Bind clustering socket */
+      if (pgmoneta_bind(config->host, config->clustering, &clustering_fds, &clustering_fds_length))
+      {
+         pgmoneta_log_fatal("Could not bind to %s:%d", config->host, config->clustering);
+#ifdef HAVE_LINUX
+         sd_notifyf(0, "STATUS=Could not bind to %s:%d", config->host, config->clustering);
+#endif
+         exit(1);
+      }
+
+      if (clustering_fds_length > MAX_FDS)
+      {
+         pgmoneta_log_fatal("Too many descriptors %d", clustering_fds_length);
+#ifdef HAVE_LINUX
+         sd_notifyf(0, "STATUS=Too many descriptors %d", clustering_fds_length);
+#endif
+         exit(1);
+      }
+
+      start_clustering();
+      clustering_started = true;
+   }
+
    /* Create and/or validate replication slots */
    if (!offline && init_replication_slots())
    {
@@ -643,6 +704,10 @@ main(int argc, char** argv)
       /* Start to verify WAL streaming */
       ev_periodic_init (&wal_streaming, wal_streaming_cb, 0., 60, 0);
       ev_periodic_start (main_loop, &wal_streaming);
+
+      /* Start clustering */
+      ev_periodic_init (&clustering, clustering_cb, 0., 3600, 0);
+      ev_periodic_start (main_loop, &clustering);
    }
 
    /* Start WAL compression */
@@ -673,6 +738,10 @@ main(int argc, char** argv)
    {
       pgmoneta_log_debug("Remote management: %d", *(management_fds + i));
    }
+   for (int i = 0; i < clustering_fds_length; i++)
+   {
+      pgmoneta_log_debug("Clustering: %d", *(clustering_fds + i));
+   }
    pgmoneta_libev_engines();
    pgmoneta_log_debug("libev engine: %s", pgmoneta_libev_engine(ev_backend(main_loop)));
    pgmoneta_log_debug("%s", OpenSSL_version(OPENSSL_VERSION));
@@ -697,6 +766,7 @@ main(int argc, char** argv)
    sd_notify(0, "STOPPING=1");
 #endif
 
+   shutdown_clustering();
    shutdown_management();
    shutdown_metrics();
    shutdown_mgt();
@@ -710,6 +780,7 @@ main(int argc, char** argv)
 
    free(metrics_fds);
    free(management_fds);
+   free(clustering_fds);
 
    remove_pidfile();
 
@@ -747,8 +818,14 @@ error:
       shutdown_management();
    }
 
+   if (clustering_started)
+   {
+      shutdown_clustering();
+   }
+
    free(metrics_fds);
    free(management_fds);
+   free(clustering_fds);
 
    config->running = false;
 
@@ -833,8 +910,11 @@ accept_mgt_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
    header = (struct json*)pgmoneta_json_get(payload, MANAGEMENT_CATEGORY_HEADER);
    id = (int32_t)pgmoneta_json_get(header, MANAGEMENT_ARGUMENT_COMMAND);
 
-   str = pgmoneta_json_to_string(payload, FORMAT_JSON, NULL, 0);
-   pgmoneta_log_debug("Management %d: %s", id, str);
+   if (pgmoneta_log_is_enabled(PGMONETA_LOGGING_LEVEL_DEBUG1))
+   {
+      str = pgmoneta_json_to_string(payload, FORMAT_JSON, NULL, 0);
+      pgmoneta_log_debug("Management %d: %s", id, str);
+   }
 
    request = (struct json*)pgmoneta_json_get(payload, MANAGEMENT_CATEGORY_REQUEST);
 
@@ -1653,6 +1733,135 @@ accept_management_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
 }
 
 static void
+accept_clustering_cb(struct ev_loop* loop, struct ev_io* watcher, int revents)
+{
+   struct sockaddr_in6 client_addr;
+   socklen_t client_addr_length;
+   int client_fd;
+   int32_t command;
+   pid_t pid;
+   char* str = NULL;
+   struct accept_io* ai;
+   struct json* payload = NULL;
+   struct json* header = NULL;
+   struct configuration* config;
+
+   if (EV_ERROR & revents)
+   {
+      pgmoneta_log_trace("accept_mgt_cb: got invalid event: %s", strerror(errno));
+      return;
+   }
+
+   config = (struct configuration*)shmem;
+   ai = (struct accept_io*)watcher;
+
+   client_addr_length = sizeof(client_addr);
+   client_fd = accept(watcher->fd, (struct sockaddr*)&client_addr, &client_addr_length);
+   if (client_fd == -1)
+   {
+      if (accept_fatal(errno) && keep_running)
+      {
+         pgmoneta_log_warn("Restarting clustering due to: %s (%d)", strerror(errno), watcher->fd);
+
+         shutdown_clustering();
+         start_clustering();
+
+         pgmoneta_log_debug("Clustering: %d", config->clustering);
+      }
+      else
+      {
+         pgmoneta_log_debug("accept: %s (%d)", strerror(errno), watcher->fd);
+      }
+      errno = 0;
+      return;
+   }
+
+   /* Process clustering request */
+   if (pgmoneta_clustering_read_json(NULL, client_fd, &payload))
+   {
+      pgmoneta_clustering_response_error(payload, CLUSTERING_ERROR_BAD_PAYLOAD);
+      pgmoneta_clustering_write_json(NULL, client_fd, payload);
+      pgmoneta_log_error("Clustering: Bad payload (%d)", CLUSTERING_ERROR_BAD_PAYLOAD);
+      goto error;
+   }
+
+   header = (struct json*)pgmoneta_json_get(payload, CLUSTERING_CATEGORY_HEADER);
+   command = (int32_t)pgmoneta_json_get(header, CLUSTERING_ARGUMENT_COMMAND);
+
+   if (pgmoneta_log_is_enabled(PGMONETA_LOGGING_LEVEL_DEBUG1))
+   {
+      str = pgmoneta_json_to_string(payload, FORMAT_JSON, NULL, 0);
+      pgmoneta_log_debug("Clustering %d: %s", command, str);
+   }
+
+   if (command == CLUSTERING_GET_ID)
+   {
+      pid = fork();
+      if (pid == -1)
+      {
+         pgmoneta_clustering_response_error(payload, CLUSTERING_ERROR_GET_ID_NOFORK);
+         pgmoneta_clustering_write_json(NULL, client_fd, payload);
+         pgmoneta_log_error("Clustering/GET_ID: No fork (%d)", CLUSTERING_ERROR_GET_ID_NOFORK);
+         goto error;
+      }
+      else if (pid == 0)
+      {
+         struct json* pyl = NULL;
+
+         shutdown_ports();
+
+         pgmoneta_json_clone(payload, &pyl);
+
+         pgmoneta_set_proc_title(1, ai->argv, "clustering", "get_id");
+         pgmoneta_clustering_response_get_id(NULL, client_fd, pyl);
+      }
+   }
+   else if (command == CLUSTERING_GET_SERVERS)
+   {
+      pid = fork();
+      if (pid == -1)
+      {
+         pgmoneta_clustering_response_error(payload, CLUSTERING_ERROR_GET_SERVERS_NOFORK);
+         pgmoneta_clustering_write_json(NULL, client_fd, payload);
+         pgmoneta_log_error("Clustering/GET_ID: No fork (%d)", CLUSTERING_ERROR_GET_SERVERS_NOFORK);
+         goto error;
+      }
+      else if (pid == 0)
+      {
+         struct json* pyl = NULL;
+
+         shutdown_ports();
+
+         pgmoneta_json_clone(payload, &pyl);
+
+         pgmoneta_set_proc_title(1, ai->argv, "clustering", "get_servers");
+         pgmoneta_clustering_response_get_servers(NULL, client_fd, pyl);
+      }
+   }
+   else
+   {
+      pgmoneta_clustering_response_error(payload, CLUSTERING_ERROR_UNKNOWN_COMMAND);
+      pgmoneta_clustering_write_json(NULL, client_fd, payload);
+      pgmoneta_log_error("Unknown: %s (%d)", pgmoneta_json_to_string(payload, FORMAT_JSON, NULL, 0), CLUSTERING_ERROR_UNKNOWN_COMMAND);
+      goto error;
+   }
+
+   free(str);
+   pgmoneta_json_destroy(payload);
+
+   pgmoneta_disconnect(client_fd);
+
+   return;
+
+error:
+
+   free(str);
+   pgmoneta_json_destroy(payload);
+
+   pgmoneta_disconnect(client_fd);
+}
+
+static void
 shutdown_cb(struct ev_loop* loop, ev_signal* w, int revents)
 {
    struct configuration* config;
@@ -1874,6 +2083,56 @@ wal_streaming_cb(struct ev_loop* loop, ev_periodic* w, int revents)
    }
 }
 
+static void
+clustering_cb(struct ev_loop* loop, ev_periodic* w, int revents)
+{
+   struct configuration* config;
+
+   config = (struct configuration*)shmem;
+
+   pgmoneta_log_debug("clustering (%p, %p, %d)", loop, w, revents);
+
+   if (EV_ERROR & revents)
+   {
+      pgmoneta_log_trace("clustering_cb: got invalid event: %s", strerror(errno));
+      return;
+   }
+
+   for (int i = 0; i < config->number_of_nodes; i++)
+   {
+      bool start = false;
+
+      for (int j = 0; !start && j < config->nodes[i].number_of_servers; j++)
+      {
+         pgmoneta_log_trace("Clustering - Server %s (%s/%s:%d) %d", config->nodes[i].server_names[j],
+                            config->nodes[i].id, config->nodes[i].host, config->nodes[i].port,
+                            config->nodes[i].server_has_changes[j]);
+
+         if (config->nodes[i].server_has_changes[j])
+         {
+            start = true;
+         }
+      }
+
+      if (start)
+      {
+         pid_t pid;
+
+         pid = fork();
+         if (pid == -1)
+         {
+            /* No process */
+            pgmoneta_log_error("pgmoenta: Clustering - Cannot create process");
+         }
+         else if (pid == 0)
+         {
+            shutdown_ports();
+            pgmoneta_clustering_run(i);
+         }
+      }
+   }
+}
+
 static bool
 accept_fatal(int error)
 {
@@ -1903,12 +2162,14 @@ reload_configuration(void)
    bool restart = false;
    int old_metrics;
    int old_management;
+   int old_clustering;
    struct configuration* config;
 
    config = (struct configuration*)shmem;
 
    old_metrics = config->metrics;
    old_management = config->management;
+   old_clustering = config->clustering;
 
    pgmoneta_reload_configuration(&restart);
 
@@ -1972,6 +2233,38 @@ reload_configuration(void)
          for (int i = 0; i < management_fds_length; i++)
          {
             pgmoneta_log_debug("Remote management: %d", *(management_fds + i));
+         }
+      }
+   }
+
+   if (old_clustering != config->clustering)
+   {
+      shutdown_clustering();
+
+      free(clustering_fds);
+      clustering_fds = NULL;
+      clustering_fds_length = 0;
+
+      if (config->clustering > 0)
+      {
+         /* Bind clustering socket */
+         if (pgmoneta_bind(config->host, config->clustering, &clustering_fds, &clustering_fds_length))
+         {
+            pgmoneta_log_fatal("Could not bind to %s:%d", config->host, config->clustering);
+            exit(1);
+         }
+
+         if (clustering_fds_length > MAX_FDS)
+         {
+            pgmoneta_log_fatal("Too many descriptors %d", clustering_fds_length);
+            exit(1);
+         }
+
+         start_clustering();
+
+         for (int i = 0; i < clustering_fds_length; i++)
+         {
+            pgmoneta_log_debug("Clustering: %d", *(clustering_fds + i));
          }
       }
    }
