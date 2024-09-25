@@ -92,6 +92,11 @@ pgmoneta_create_info(char* directory, char* label, int status)
    fputs(&buffer[0], sfile);
    pgmoneta_log_trace("%s", &buffer[0]);
 
+   memset(&buffer[0], 0, sizeof(buffer));
+   snprintf(&buffer[0], sizeof(buffer), "%s=%s\n", INFO_OWNER, config->clustering_id);
+   fputs(&buffer[0], sfile);
+   pgmoneta_log_trace("%s", &buffer[0]);
+
    pgmoneta_permission(s, 6, 0, 0);
 
    if (sfile != NULL)
@@ -550,6 +555,10 @@ pgmoneta_get_info_string(struct backup* backup, char* key, char** value)
    {
       result = pgmoneta_append(result, backup->comments);
    }
+   else if (!strcmp(INFO_OWNER, key))
+   {
+      result = pgmoneta_append(result, backup->owner);
+   }
    else
    {
       goto error;
@@ -802,6 +811,10 @@ pgmoneta_get_backup_file(char* fn, struct backup** backup)
          {
             bck->encryption = atoi(&value[0]);
          }
+         else if (!strcmp(INFO_OWNER, &key[0]))
+         {
+            memcpy(&bck->owner[0], &value[0], strlen(&value[0]));
+         }
       }
    }
 
@@ -956,6 +969,7 @@ pgmoneta_info_request(SSL* ssl, int client_fd, int server, uint8_t compression, 
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_NUMBER_OF_TABLESPACES, (uintptr_t)bck->number_of_tablespaces, ValueUInt64);
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_COMPRESSION, (uintptr_t)bck->compression, ValueInt32);
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_ENCRYPTION, (uintptr_t)bck->encryption, ValueInt32);
+   pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_OWNER, (uintptr_t)bck->owner, ValueString);
 
    if (pgmoneta_json_create(&tablespaces))
    {
@@ -1148,6 +1162,7 @@ pgmoneta_annotate_request(SSL* ssl, int client_fd, int server, uint8_t compressi
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_NUMBER_OF_TABLESPACES, (uintptr_t)bck->number_of_tablespaces, ValueUInt64);
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_COMPRESSION, (uintptr_t)bck->compression, ValueInt32);
    pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_ENCRYPTION, (uintptr_t)bck->encryption, ValueInt32);
+   pgmoneta_json_put(response, MANAGEMENT_ARGUMENT_OWNER, (uintptr_t)bck->owner, ValueString);
 
    if (pgmoneta_json_create(&tablespaces))
    {

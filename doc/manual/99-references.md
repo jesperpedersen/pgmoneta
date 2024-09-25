@@ -89,6 +89,7 @@
   [lz4_compression.h]: https://github.com/pgmoneta/pgmoneta/blob/main/src/include/lz4_compression.h
   [zstandard_compression.h]: https://github.com/pgmoneta/pgmoneta/blob/main/src/include/zstandard_compression.h
   [bzip2_compression.h]: https://github.com/pgmoneta/pgmoneta/blob/main/src/include/bzip2_compression.h
+  [clustering.h]: https://github.com/pgmoneta/pgmoneta/blob/main/src/include/clustering.h
 <!-- src/libpgmoneta -->
   [aes.c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/aes.c
   [backup_c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/backup.c
@@ -109,6 +110,7 @@
   [lz4_compression.c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/lz4_compression.c
   [zstandard_compression.c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/zstandard_compression.c
   [bzip2_compression.c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/bzip2_compression.c
+  [clustering.c]: https://github.com/pgmoneta/pgmoneta/blob/main/src/libpgmoneta/clustering.c
   
 <!-- Contributing -->
   [ask]: https://github.com/pgmoneta/pgmoneta/discussions

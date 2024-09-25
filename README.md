@@ -13,6 +13,7 @@
 * Symlink support
 * WAL shipping support
 * Hot standby
+* Clustering support
 * Prometheus support
 * Remote management
 * Offline mode

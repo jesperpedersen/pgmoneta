@@ -69,6 +69,7 @@ extern "C" {
 #define MISC_LENGTH 128
 #define MAX_COMMENT 2048
 #define MAX_EXTRA_PATH 8192
+#define MAX_VALUE 1024
 
 #define MAX_EXTRA 64
 #define NUMBER_OF_SERVERS 64
@@ -241,6 +242,7 @@ struct server
    char tls_key_file[MISC_LENGTH];          /**< TLS key path */
    char tls_ca_file[MISC_LENGTH];           /**< TLS CA certificate path */
    int workers;                             /**< The number of workers */
+   int clustering;                          /**< Is clustering enabled ? */
    int backup_max_rate;                     /**< Number of tokens added to the bucket with each replenishment for backup. */
    int network_max_rate;                    /**< Number of bytes of tokens added every one second to limit the netowrk backup rate */
    int manifest;                            /**< The manifest hash algorithm */
@@ -288,6 +290,19 @@ struct prometheus
    atomic_ulong logging_warn;  /**< Logging: WARN */
    atomic_ulong logging_error; /**< Logging: ERROR */
    atomic_ulong logging_fatal; /**< Logging: FATAL */
+} __attribute__ ((aligned (64)));
+
+/** @struct clustering_node
+ * Defines a clustering node
+ */
+struct clustering_node
+{
+   char id[MISC_LENGTH];                              /**< The identifier */
+   char host[MISC_LENGTH];                            /**< The host name of the clustering server */
+   int port;                                          /**< The port of the clustering server */
+   bool active;                                       /**< Can the server be reached */
+   int number_of_servers;                             /**< The number of servers */
+   char server_names[NUMBER_OF_SERVERS][MISC_LENGTH]; /**< The server names */
 } __attribute__ ((aligned (64)));
 
 /** @struct configuration
@@ -353,6 +368,11 @@ struct configuration
    char tls_key_file[MISC_LENGTH];  /**< TLS key path */
    char tls_ca_file[MISC_LENGTH];   /**< TLS CA certificate path */
 
+   int clustering;                     /**< The clustering port */
+   char clustering_id[MISC_LENGTH];    /**< The clustering identifier */
+   char clustering_nodes[MAX_VALUE];   /**< The clustering host */
+   char clustering_base_dir[MAX_PATH]; /**< The clustering base directory */
+
    int blocking_timeout;       /**< The blocking timeout in seconds */
    int authentication_timeout; /**< The authentication timeout in seconds */
    char pidfile[MAX_PATH];     /**< File containing the PID */
@@ -376,16 +396,18 @@ struct configuration
    int number_of_servers;        /**< The number of servers */
    int number_of_users;          /**< The number of users */
    int number_of_admins;         /**< The number of admins */
+   int number_of_nodes;          /**< The number of clustering nodes */
 
    int backup_max_rate; /**< Number of tokens added to the bucket with each replenishment for backup. */
    int network_max_rate;    /**< Number of bytes of tokens added every one second to limit the netowrk backup rate */
 
    int manifest;  /**< The manifest hash algorithm */
 
-   struct server servers[NUMBER_OF_SERVERS];       /**< The servers */
-   struct user users[NUMBER_OF_USERS];             /**< The users */
-   struct user admins[NUMBER_OF_ADMINS];           /**< The admins */
-   struct prometheus prometheus;                   /**< The Prometheus metrics */
+   struct server servers[NUMBER_OF_SERVERS];        /**< The servers */
+   struct user users[NUMBER_OF_USERS];              /**< The users */
+   struct user admins[NUMBER_OF_ADMINS];            /**< The admins */
+   struct prometheus prometheus;                    /**< The Prometheus metrics */
+   struct clustering_node nodes[NUMBER_OF_SERVERS]; /**< The clustering nodes */
 } __attribute__ ((aligned (64)));
 
 #ifdef __cplusplus
