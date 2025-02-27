@@ -28,7 +28,7 @@
 
 /* pgmoneta */
 #include <pgmoneta.h>
-#include <deque.h>
+#include <art.h>
 #include <dirent.h>
 #include <http.h>
 #include <info.h>
@@ -44,9 +44,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int azure_storage_setup(struct deque*);
-static int azure_storage_execute(struct deque*);
-static int azure_storage_teardown(struct deque*);
+static int azure_storage_setup(struct art*);
+static int azure_storage_execute(struct art*);
+static int azure_storage_teardown(struct art*);
 
 static int azure_upload_files(char* local_root, char* azure_root, char* relative_path);
 static int azure_send_upload_request(char* local_root, char* azure_root, char* relative_path);
@@ -72,7 +72,7 @@ pgmoneta_storage_create_azure(void)
 }
 
 static int
-azure_storage_setup(struct deque* nodes)
+azure_storage_setup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -87,17 +87,18 @@ azure_storage_setup(struct deque* nodes)
    }
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Azure storage engine (setup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 
@@ -106,7 +107,7 @@ error:
 }
 
 static int
-azure_storage_execute(struct deque* nodes)
+azure_storage_execute(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -122,22 +123,25 @@ azure_storage_execute(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Azure storage engine (execute): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    local_root = pgmoneta_get_server_backup_identifier(server, label);
    azure_root = azure_get_basepath(server, label);
 
-   if (azure_upload_files(local_root, azure_root, "")) {
+   if (azure_upload_files(local_root, azure_root, ""))
+   {
       goto error;
    }
 
@@ -160,7 +164,7 @@ error:
 }
 
 static int
-azure_storage_teardown(struct deque* nodes)
+azure_storage_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -170,14 +174,17 @@ azure_storage_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    root = pgmoneta_get_server_backup_identifier_data(server, label);
 
@@ -186,7 +193,6 @@ azure_storage_teardown(struct deque* nodes)
    curl_easy_cleanup(curl);
 
    pgmoneta_log_debug("Azure storage engine (teardown): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    free(root);
 

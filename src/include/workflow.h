@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-#include <deque.h>
+#include <art.h>
 #include <info.h>
 
 #include <stdlib.h>
@@ -77,9 +77,9 @@ extern "C" {
 #define NODE_TARGET_FILE       "target_file"       /* The target file */
 #define NODE_TARGET_ROOT       "target_root"       /* The target root directory */
 
-typedef int (*setup)(struct deque*);
-typedef int (*execute)(struct deque*);
-typedef int (*teardown)(struct deque*);
+typedef int (*setup)(struct art*);
+typedef int (*execute)(struct art*);
+typedef int (*teardown)(struct art*);
 
 /** @struct workflow
  * Defines a workflow
@@ -112,7 +112,7 @@ pgmoneta_workflow_create(int workflow_type, int server, struct backup* backup);
  * @return 0 upon success, otherwise 1
  */
 int
-pgmoneta_workflow_nodes(int server, char* identifier, struct deque* nodes, struct backup** backup);
+pgmoneta_workflow_nodes(int server, char* identifier, struct art* nodes, struct backup** backup);
 
 /**
  * Destroy the workflow

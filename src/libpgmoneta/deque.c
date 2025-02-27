@@ -26,11 +26,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "value.h"
 #include <pgmoneta.h>
 #include <deque.h>
 #include <logging.h>
 #include <utils.h>
+#include <value.h>
 
 #include <stdlib.h>
 #include <string.h>

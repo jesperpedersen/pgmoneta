@@ -29,7 +29,6 @@
  */
 
 /* pgmoneta */
-#include "workflow.h"
 #include <pgmoneta.h>
 #include <art.h>
 #include <info.h>
@@ -38,6 +37,7 @@
 #include <utils.h>
 #include <security.h>
 #include <storage.h>
+#include <workflow.h>
 
 /* system */
 #include <assert.h>
@@ -47,11 +47,11 @@
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
 
-static int ssh_storage_setup(struct deque*);
-static int ssh_storage_backup_execute(struct deque*);
-static int ssh_storage_wal_shipping_execute(struct deque*);
-static int ssh_storage_backup_teardown(struct deque*);
-static int ssh_storage_wal_shipping_teardown(struct deque*);
+static int ssh_storage_setup(struct art*);
+static int ssh_storage_backup_execute(struct art*);
+static int ssh_storage_wal_shipping_execute(struct art*);
+static int ssh_storage_backup_teardown(struct art*);
+static int ssh_storage_wal_shipping_teardown(struct art*);
 
 static char* get_remote_server_basepath(int server);
 static char* get_remote_server_backup(int server);
@@ -110,7 +110,7 @@ pgmoneta_storage_create_ssh(int workflow_type)
 }
 
 static int
-ssh_storage_setup(struct deque* nodes)
+ssh_storage_setup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -132,17 +132,19 @@ ssh_storage_setup(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("SSH storage engine (setup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    homedir = getenv("HOME");
    pubkey_path = "/.ssh/id_rsa.pub";
@@ -292,7 +294,7 @@ error:
 }
 
 static int
-ssh_storage_backup_execute(struct deque* nodes)
+ssh_storage_backup_execute(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -313,18 +315,19 @@ ssh_storage_backup_execute(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
-   pgmoneta_log_debug("SSH storage engine (execute): %s/%s",
-                      config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
+   pgmoneta_log_debug("SSH storage engine (execute): %s/%s", config->servers[server].name, label);
 
    remote_root = get_remote_server_backup_identifier(server, label);
 
@@ -431,7 +434,7 @@ error:
 }
 
 static int
-ssh_storage_wal_shipping_execute(struct deque* nodes)
+ssh_storage_wal_shipping_execute(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -442,17 +445,19 @@ ssh_storage_wal_shipping_execute(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("SSH storage engine (WAL shipping/execute): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    remote_root = get_remote_server_wal(server);
    local_root = pgmoneta_get_server_wal(server);
@@ -478,7 +483,7 @@ error:
 }
 
 static int
-ssh_storage_backup_teardown(struct deque* nodes)
+ssh_storage_backup_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -488,17 +493,19 @@ ssh_storage_backup_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("SSH storage engine (teardown): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    if (!is_error)
    {
@@ -525,7 +532,7 @@ ssh_storage_backup_teardown(struct deque* nodes)
 }
 
 static int
-ssh_storage_wal_shipping_teardown(struct deque* nodes)
+ssh_storage_wal_shipping_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -534,17 +541,19 @@ ssh_storage_wal_shipping_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("SSH storage engine (WAL shipping/teardown): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    sftp_free(sftp);
 

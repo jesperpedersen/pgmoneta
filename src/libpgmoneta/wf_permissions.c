@@ -28,6 +28,7 @@
 
 /* pgmoneta */
 #include <pgmoneta.h>
+#include <art.h>
 #include <info.h>
 #include <logging.h>
 #include <utils.h>
@@ -37,12 +38,11 @@
 #include <assert.h>
 #include <stdlib.h>
 
-static int permissions_setup(struct deque*);
-static int permissions_execute_backup(struct deque*);
-static int permissions_execute_restore(struct deque*);
-/* static int permissions_execute_restore_incremental(struct deque*); */
-static int permissions_execute_archive(struct deque*);
-static int permissions_teardown(struct deque*);
+static int permissions_setup(struct art*);
+static int permissions_execute_backup(struct art*);
+static int permissions_execute_restore(struct art*);
+static int permissions_execute_archive(struct art*);
+static int permissions_teardown(struct art*);
 
 struct workflow*
 pgmoneta_create_permissions(int type)
@@ -78,7 +78,7 @@ pgmoneta_create_permissions(int type)
 }
 
 static int
-permissions_setup(struct deque* nodes)
+permissions_setup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -87,23 +87,25 @@ permissions_setup(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Permissions (setup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }
 
 static int
-permissions_execute_backup(struct deque* nodes)
+permissions_execute_backup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -113,17 +115,19 @@ permissions_execute_backup(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Permissions (backup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    path = pgmoneta_get_server_backup_identifier_data(server, label);
 
@@ -135,7 +139,7 @@ permissions_execute_backup(struct deque* nodes)
 }
 
 static int
-permissions_execute_restore(struct deque* nodes)
+permissions_execute_restore(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -143,19 +147,20 @@ permissions_execute_restore(struct deque* nodes)
    struct configuration* config;
 
    config = (struct configuration*)shmem;
-   pgmoneta_deque_list(nodes);
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
-   assert(pgmoneta_deque_exists(nodes, NODE_TARGET_ROOT));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
-   path = pgmoneta_append(path, (char*)pgmoneta_deque_get(nodes, NODE_TARGET_ROOT));
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
+   path = pgmoneta_append(path, (char*)pgmoneta_art_search(nodes, NODE_TARGET_ROOT));
 
    if (!pgmoneta_ends_with(path, "/"))
    {
@@ -176,7 +181,7 @@ permissions_execute_restore(struct deque* nodes)
 }
 
 static int
-permissions_execute_archive(struct deque* nodes)
+permissions_execute_archive(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -190,20 +195,21 @@ permissions_execute_archive(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
-   assert(pgmoneta_deque_exists(nodes, NODE_TARGET_ROOT));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Permissions (archive): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
-   path = pgmoneta_append(path, (char*)pgmoneta_deque_get(nodes, NODE_TARGET_ROOT));
+   path = pgmoneta_append(path, (char*)pgmoneta_art_search(nodes, NODE_TARGET_ROOT));
    if (!pgmoneta_ends_with(path, "/"))
    {
       path = pgmoneta_append(path, "/");
@@ -245,7 +251,7 @@ permissions_execute_archive(struct deque* nodes)
 }
 
 static int
-permissions_teardown(struct deque* nodes)
+permissions_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -254,17 +260,19 @@ permissions_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Permissions (teardown): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }

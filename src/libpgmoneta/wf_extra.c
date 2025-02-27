@@ -25,6 +25,9 @@
  * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#include <pgmoneta.h>
+#include <art.h>
 #include <extension.h>
 #include <logging.h>
 #include <message.h>
@@ -38,9 +41,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int extra_setup(struct deque*);
-static int extra_execute(struct deque*);
-static int extra_teardown(struct deque*);
+static int extra_setup(struct art*);
+static int extra_execute(struct art*);
+static int extra_teardown(struct art*);
 
 struct workflow*
 pgmoneta_create_extra(void)
@@ -63,7 +66,7 @@ pgmoneta_create_extra(void)
 }
 
 static int
-extra_setup(struct deque* nodes)
+extra_setup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -72,23 +75,25 @@ extra_setup(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Extra (setup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }
 
 static int
-extra_execute(struct deque* nodes)
+extra_execute(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -111,14 +116,17 @@ extra_execute(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    if (config->servers[server].number_of_extra == 0)
    {
@@ -127,7 +135,6 @@ extra_execute(struct deque* nodes)
    }
 
    pgmoneta_log_debug("Extra (execute): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    // Create the root directory
    root = pgmoneta_get_server_extra_identifier(server, label);
@@ -238,7 +245,7 @@ error:
 }
 
 static int
-extra_teardown(struct deque* nodes)
+extra_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -247,17 +254,19 @@ extra_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("Extra (teardown): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }

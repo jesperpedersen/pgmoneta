@@ -28,6 +28,7 @@
 
 /* pgmoneta */
 #include <pgmoneta.h>
+#include <art.h>
 #include <logging.h>
 #include <utils.h>
 #include <zstandard_compression.h>
@@ -39,10 +40,10 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-static int zstd_setup(struct deque*);
-static int zstd_execute_compress(struct deque*);
-static int zstd_execute_uncompress(struct deque*);
-static int zstd_teardown(struct deque*);
+static int zstd_setup(struct art*);
+static int zstd_execute_compress(struct art*);
+static int zstd_execute_uncompress(struct art*);
+static int zstd_teardown(struct art*);
 
 struct workflow*
 pgmoneta_create_zstd(bool compress)
@@ -74,7 +75,7 @@ pgmoneta_create_zstd(bool compress)
 }
 
 static int
-zstd_setup(struct deque* nodes)
+zstd_setup(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -83,23 +84,25 @@ zstd_setup(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("ZSTD (setup): %s/%s", config->servers[server].name, label);
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }
 
 static int
-zstd_execute_compress(struct deque* nodes)
+zstd_execute_compress(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -121,22 +124,23 @@ zstd_execute_compress(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("ZSTD (compress): %s/%s", config->servers[server].name, label);
 
-   pgmoneta_deque_list(nodes);
-
    clock_gettime(CLOCK_MONOTONIC_RAW, &start_t);
 
-   tarfile = (char*)pgmoneta_deque_get(nodes, NODE_TARGET_FILE);
+   tarfile = (char*)pgmoneta_art_search(nodes, NODE_TARGET_FILE);
 
    if (tarfile == NULL)
    {
@@ -146,8 +150,8 @@ zstd_execute_compress(struct deque* nodes)
          pgmoneta_workers_initialize(number_of_workers, &workers);
       }
 
-      backup_base = (char*)pgmoneta_deque_get(nodes, NODE_BACKUP_BASE);
-      backup_data = (char*)pgmoneta_deque_get(nodes, NODE_BACKUP_DATA);
+      backup_base = (char*)pgmoneta_art_search(nodes, NODE_BACKUP_BASE);
+      backup_data = (char*)pgmoneta_art_search(nodes, NODE_BACKUP_DATA);
 
       pgmoneta_zstandardc_data(backup_data, workers);
       pgmoneta_zstandardc_tablespaces(backup_base, workers);
@@ -209,7 +213,7 @@ error:
 }
 
 static int
-zstd_execute_uncompress(struct deque* nodes)
+zstd_execute_uncompress(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -227,27 +231,28 @@ zstd_execute_uncompress(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("ZSTD (decompress): %s/%s", config->servers[server].name, label);
 
-   pgmoneta_deque_list(nodes);
-
-   base = (char*)pgmoneta_deque_get(nodes, NODE_TARGET_BASE);
+   base = (char*)pgmoneta_art_search(nodes, NODE_TARGET_BASE);
    if (base == NULL)
    {
-      base = (char*)pgmoneta_deque_get(nodes, NODE_BACKUP_BASE);
+      base = (char*)pgmoneta_art_search(nodes, NODE_BACKUP_BASE);
    }
    if (base == NULL)
    {
-      base = (char*)pgmoneta_deque_get(nodes, NODE_BACKUP_DATA);
+      base = (char*)pgmoneta_art_search(nodes, NODE_BACKUP_DATA);
    }
 
    decompress_time = time(NULL);
@@ -293,7 +298,7 @@ error:
 }
 
 static int
-zstd_teardown(struct deque* nodes)
+zstd_teardown(struct art* nodes)
 {
    int server = -1;
    char* label = NULL;
@@ -302,18 +307,19 @@ zstd_teardown(struct deque* nodes)
    config = (struct configuration*)shmem;
 
 #ifdef DEBUG
-   pgmoneta_deque_list(nodes);
+   char* a = NULL;
+   a = pgmoneta_art_to_string(nodes, FORMAT_TEXT, NULL, 0);
+   pgmoneta_log_debug("(Tree)\n%s", a);
    assert(nodes != NULL);
-   assert(pgmoneta_deque_exists(nodes, NODE_SERVER));
-   assert(pgmoneta_deque_exists(nodes, NODE_LABEL));
+   assert(pgmoneta_art_contains_key(nodes, NODE_SERVER));
+   assert(pgmoneta_art_contains_key(nodes, NODE_LABEL));
+   free(a);
 #endif
 
-   server = (int)pgmoneta_deque_get(nodes, NODE_SERVER);
-   label = (char*)pgmoneta_deque_get(nodes, NODE_LABEL);
+   server = (int)pgmoneta_art_search(nodes, NODE_SERVER);
+   label = (char*)pgmoneta_art_search(nodes, NODE_LABEL);
 
    pgmoneta_log_debug("ZSTD (teardown): %s/%s", config->servers[server].name, label);
-
-   pgmoneta_deque_list(nodes);
 
    return 0;
 }
