@@ -339,7 +339,7 @@ pgmoneta_art_search(struct art* t, char* key)
 
    if (t == NULL)
    {
-      pgmoneta_log_error("ART is NULL");
+      pgmoneta_log_error("pgmoneta_art_search: ART is NULL");
       found = false;
    }
 
@@ -403,20 +403,20 @@ pgmoneta_art_insert(struct art* t, char* key, uintptr_t value, enum value_type t
 
    if (t == NULL)
    {
-      pgmoneta_log_debug("ART is NULL");
+      pgmoneta_log_debug("pgmoneta_art_insert: ART is NULL");
    }
 
    if (key == NULL)
    {
-      pgmoneta_log_debug("Key is NULL");
+      pgmoneta_log_debug("pgmoneta_art_insert: Key is NULL");
    }
    else if (!strcmp(key, ""))
    {
-      pgmoneta_log_debug("Key is empty");
+      pgmoneta_log_debug("pgmoneta_art_insert: Key is empty");
    }
    else if (pgmoneta_art_contains_key(t, key))
    {
-      pgmoneta_log_debug("Key exists: %s", key);
+      pgmoneta_log_debug("pgmoneta_art_insert: Key exists: %s", key);
    }
 
    pgmoneta_value_create(pgmoneta_value_to_ref(type), value, &v);
@@ -1461,7 +1461,7 @@ pgmoneta_art_iterator_next(struct art_iterator* iter)
    tree = iter->tree;
    if (iter->count == 0)
    {
-      pgmoneta_deque_add(que, NULL, (uintptr_t)tree->root, ValueRef);
+      pgmoneta_deque_add(que, "Root", (uintptr_t)tree->root, ValueRef);
    }
    while (!pgmoneta_deque_empty(que))
    {
@@ -1480,8 +1480,13 @@ pgmoneta_art_iterator_next(struct art_iterator* iter)
             struct art_node4* n = (struct art_node4*) node;
             for (int i = 0; i < node->num_children; i++)
             {
+               char* t = NULL;
+
+               t = pgmoneta_append(t, "Child");
+               t = pgmoneta_append_int(t, i);
+
                child = n->children[i];
-               pgmoneta_deque_add(que, NULL, (uintptr_t)child, ValueRef);
+               pgmoneta_deque_add(que, t, (uintptr_t)child, ValueRef);
             }
             break;
          }
@@ -1490,8 +1495,13 @@ pgmoneta_art_iterator_next(struct art_iterator* iter)
             struct art_node16* n = (struct art_node16*) node;
             for (int i = 0; i < node->num_children; i++)
             {
+               char *t = NULL;
+
+               t = pgmoneta_append(t, "Child");
+               t = pgmoneta_append_int(t, i);
+
                child = n->children[i];
-               pgmoneta_deque_add(que, NULL, (uintptr_t)child, ValueRef);
+               pgmoneta_deque_add(que, t, (uintptr_t)child, ValueRef);
             }
             break;
          }
@@ -1500,13 +1510,18 @@ pgmoneta_art_iterator_next(struct art_iterator* iter)
             struct art_node48* n = (struct art_node48*) node;
             for (int i = 0; i < 256; i++)
             {
+               char *t = NULL;
+
+               t = pgmoneta_append(t, "Child");
+               t = pgmoneta_append_int(t, i);
+
                idx = n->keys[i];
                if (idx == 0)
                {
                   continue;
                }
                child = n->children[idx - 1];
-               pgmoneta_deque_add(que, NULL, (uintptr_t)child, ValueRef);
+               pgmoneta_deque_add(que, t, (uintptr_t)child, ValueRef);
             }
             break;
          }
@@ -1515,12 +1530,16 @@ pgmoneta_art_iterator_next(struct art_iterator* iter)
             struct art_node256* n = (struct art_node256*) node;
             for (int i = 0; i < 256; i++)
             {
-               if (n->children[i] == NULL)
-               {
+               char *t = NULL;
+
+               t = pgmoneta_append(t, "Child");
+               t = pgmoneta_append_int(t, i);
+
+               if (n->children[i] == NULL) {
                   continue;
                }
                child = n->children[i];
-               pgmoneta_deque_add(que, NULL, (uintptr_t)child, ValueRef);
+               pgmoneta_deque_add(que, t, (uintptr_t)child, ValueRef);
             }
             break;
          }
